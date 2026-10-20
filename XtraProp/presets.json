@@ -1,13 +1,13 @@
 {
   "motors": {
-    "EMAX GT2820/06": {
-      "name": "EMAX GT2820/06",
+    "XtraChallenge 2027 - EMAX GT2820/06": {
+      "name": "XtraChallenge 2027 - EMAX GT2820/06",
       "KV": 985.0,
       "R_motor": 0.055,
       "I_loadfree": 1.8,
-      "max_current": 45,
-      "max_power": 650,
-      "weight_g": 140
+      "max_current": 45.0,
+      "max_power": 650.0,
+      "weight_g": 140.0
     }
   },
   "batteries": {
