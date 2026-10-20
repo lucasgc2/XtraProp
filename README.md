@@ -1,4 +1,5 @@
-# Propeller Performance
+# XtraProp
+> Developed for propeller studies and performance optimization for the **XtraChallenge 2027**.
 
 A desktop tool for predicting the thrust, rpm and current of an electric propulsion setup (motor + battery + propeller) across throttle and airspeed. It combines a blade element momentum theory (BEMT) propeller model with a simple DC motor and battery model, and wraps it in a bilingual (English / Spanish) GUI so the team can compare setups quickly.
 
@@ -47,7 +48,7 @@ logo_black.png     Team logo shown in the side panel (optional)
 python prop_gui.py
 ```
 
-On first run the app creates `presets.json` with an example motor (EMAX GT2820/06), battery (3S 3300 mAh) and two 10×6 propellers.
+or simply open ```run_gui.bat``` on Windows.
 
 ## Using the app
 
