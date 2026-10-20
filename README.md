@@ -1,4 +1,5 @@
-# Propeller Performance
+# XtraProp
+> Developed for propeller studies and performance optimization for the **XtraChallenge 2027**.
 
 A desktop tool for predicting the thrust, rpm and current of an electric propulsion setup (motor + battery + propeller) across throttle and airspeed. It combines a blade element momentum theory (BEMT) propeller model with a simple DC motor and battery model, and wraps it in a bilingual (English / Spanish) GUI so the team can compare setups quickly.
 
