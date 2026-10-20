@@ -8,6 +8,15 @@
       "max_current": 45.0,
       "max_power": 650.0,
       "weight_g": 140.0
+    },
+    "ACC 2024 - T-Motor AT2826 900KV": {
+      "name": "ACC 2024 - T-Motor AT2826 900KV",
+      "KV": 880.0,
+      "R_motor": 0.039,
+      "I_loadfree": 1.6,
+      "max_current": 45.0,
+      "max_power": 700.0,
+      "weight_g": 139.0
     }
   },
   "batteries": {
@@ -77,9 +86,66 @@
       "pitch_inch": 6.0,
       "blades": 2,
       "num_elm": 20
+    },
+    "12.5 x 7.5 Aeronaut CAM Carbon": {
+      "name": "12.5 x 7.5 Aeronaut CAM Carbon",
+      "diameter_inch": 12.5,
+      "r_hub": 0.022,
+      "root_chord": 0.02,
+      "tip_chord": 0.02,
+      "root_pitch": 0.0,
+      "tip_pitch": 0.0,
+      "root_airfoil": "naca23012",
+      "tip_airfoil": "naca0009",
+      "pitch_inch": 7.5,
+      "blades": 2,
+      "num_elm": 20
+    },
+    "14 x 8 Aeronaut CAM Carbon": {
+      "name": "14 x 8 Aeronaut CAM Carbon",
+      "diameter_inch": 14.0,
+      "r_hub": 0.022,
+      "root_chord": 0.02,
+      "tip_chord": 0.02,
+      "root_pitch": 0.0,
+      "tip_pitch": 0.0,
+      "root_airfoil": "naca23012",
+      "tip_airfoil": "naca0009",
+      "pitch_inch": 8.0,
+      "blades": 2,
+      "num_elm": 20
+    },
+    "14 x 6.5 Aeronaut CAM Carbon": {
+      "name": "14 x 6.5 Aeronaut CAM Carbon",
+      "diameter_inch": 14.0,
+      "r_hub": 0.022,
+      "root_chord": 0.02,
+      "tip_chord": 0.02,
+      "root_pitch": 0.0,
+      "tip_pitch": 0.0,
+      "root_airfoil": "naca23012",
+      "tip_airfoil": "naca0009",
+      "pitch_inch": 6.5,
+      "blades": 2,
+      "num_elm": 20
+    },
+    "13 x 7 Aeronaut CAM Carbon": {
+      "name": "13 x 7 Aeronaut CAM Carbon",
+      "diameter_inch": 13.0,
+      "r_hub": 0.022,
+      "root_chord": 0.02,
+      "tip_chord": 0.02,
+      "root_pitch": 0.0,
+      "tip_pitch": 0.0,
+      "root_airfoil": "naca23012",
+      "tip_airfoil": "naca0009",
+      "pitch_inch": 7.0,
+      "blades": 2,
+      "num_elm": 20
     }
   },
   "settings": {
-    "language": "en"
+    "language": "en",
+    "current_limit": "30"
   }
 }
