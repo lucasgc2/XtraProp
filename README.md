@@ -48,7 +48,7 @@ logo_black.png     Team logo shown in the side panel (optional)
 python prop_gui.py
 ```
 
-On first run the app creates `presets.json` with an example motor (EMAX GT2820/06), battery (3S 3300 mAh) and two 10×6 propellers.
+or simply open ```run_gui.bat``` on Windows.
 
 ## Using the app
 
