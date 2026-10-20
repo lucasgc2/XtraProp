@@ -1,0 +1,2 @@
+# XtraProp
+Thrust model calculator
