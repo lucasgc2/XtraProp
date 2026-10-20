@@ -17,6 +17,15 @@
       "max_current": 45.0,
       "max_power": 700.0,
       "weight_g": 139.0
+    },
+    "XtraChallenge 2026 - Emax GT2820 985 KV": {
+      "name": "XtraChallenge 2026 - Emax GT2820 985 KV",
+      "KV": 985.0,
+      "R_motor": 0.046,
+      "I_loadfree": 2.1,
+      "max_current": 41.0,
+      "max_power": 600.0,
+      "weight_g": 140.0
     }
   },
   "batteries": {
@@ -142,10 +151,24 @@
       "pitch_inch": 7.0,
       "blades": 2,
       "num_elm": 20
+    },
+    "10 x 6 Aeronaut CAM Carbon": {
+      "name": "10 x 6 Aeronaut CAM Carbon",
+      "diameter_inch": 10.0,
+      "r_hub": 0.022,
+      "root_chord": 0.02,
+      "tip_chord": 0.02,
+      "root_pitch": 0.0,
+      "tip_pitch": 0.0,
+      "root_airfoil": "naca23012",
+      "tip_airfoil": "naca0009",
+      "pitch_inch": 6.0,
+      "blades": 2,
+      "num_elm": 20
     }
   },
   "settings": {
     "language": "en",
-    "current_limit": "30"
+    "current_limit": ""
   }
 }
