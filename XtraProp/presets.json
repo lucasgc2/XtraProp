@@ -1,0 +1,85 @@
+{
+  "motors": {
+    "EMAX GT2820/06": {
+      "name": "EMAX GT2820/06",
+      "KV": 985.0,
+      "R_motor": 0.055,
+      "I_loadfree": 1.8,
+      "max_current": 45,
+      "max_power": 650,
+      "weight_g": 140
+    }
+  },
+  "batteries": {
+    "3S 3300mAh 45C": {
+      "name": "3S 3300mAh 45C",
+      "cells": 3,
+      "nominal_voltage": 11.1,
+      "max_voltage": 12.6,
+      "capacity_mah": 3300,
+      "discharge_c": 45,
+      "internal_resistance": 0.005
+    }
+  },
+  "propellers": {
+    "18 x 8 APC Thin Electric": {
+      "name": "18 x 8 APC Thin Electric",
+      "diameter_inch": 18.0,
+      "r_hub": 0.00635,
+      "root_chord": 0.02,
+      "tip_chord": 0.02,
+      "root_pitch": 0.0,
+      "tip_pitch": 0.0,
+      "root_airfoil": "naca4412",
+      "tip_airfoil": "naca2412",
+      "pitch_inch": 8.0,
+      "blades": 2,
+      "num_elm": 20
+    },
+    "13 x 8 Aeronaut CAM Carbon": {
+      "name": "13 x 8 Aeronaut CAM Carbon",
+      "diameter_inch": 13.0,
+      "r_hub": 0.022,
+      "root_chord": 0.02,
+      "tip_chord": 0.02,
+      "root_pitch": 0.0,
+      "tip_pitch": 0.0,
+      "root_airfoil": "naca23012",
+      "tip_airfoil": "naca0009",
+      "pitch_inch": 8.0,
+      "blades": 2,
+      "num_elm": 20
+    },
+    "12 x 6 Aeronaut CAM Carbon": {
+      "name": "12 x 6 Aeronaut CAM Carbon",
+      "diameter_inch": 12.0,
+      "r_hub": 0.022,
+      "root_chord": 0.02,
+      "tip_chord": 0.02,
+      "root_pitch": 0.0,
+      "tip_pitch": 0.0,
+      "root_airfoil": "naca23012",
+      "tip_airfoil": "naca0009",
+      "pitch_inch": 6.0,
+      "blades": 2,
+      "num_elm": 20
+    },
+    "14 x 6 Aeronaut CAM Carbon": {
+      "name": "14 x 6 Aeronaut CAM Carbon",
+      "diameter_inch": 14.0,
+      "r_hub": 0.022,
+      "root_chord": 0.02,
+      "tip_chord": 0.02,
+      "root_pitch": 0.0,
+      "tip_pitch": 0.0,
+      "root_airfoil": "naca23012",
+      "tip_airfoil": "naca0009",
+      "pitch_inch": 6.0,
+      "blades": 2,
+      "num_elm": 20
+    }
+  },
+  "settings": {
+    "language": "en"
+  }
+}
