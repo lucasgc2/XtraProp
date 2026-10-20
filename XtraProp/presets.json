@@ -18,8 +18,8 @@
       "max_power": 700.0,
       "weight_g": 139.0
     },
-    "XtraChallenge 2026 - Emax GT2820 985 KV": {
-      "name": "XtraChallenge 2026 - Emax GT2820 985 KV",
+    "XtraChallenge 2025 - Emax GT2820 985 KV": {
+      "name": "XtraChallenge 2025 - Emax GT2820 985 KV",
       "KV": 985.0,
       "R_motor": 0.046,
       "I_loadfree": 2.1,
@@ -37,6 +37,15 @@
       "capacity_mah": 3300,
       "discharge_c": 45,
       "internal_resistance": 0.005
+    },
+    "3S 2700mAh 30C": {
+      "name": "3S 2700mAh 30C",
+      "cells": 3,
+      "nominal_voltage": 11.1,
+      "max_voltage": 12.6,
+      "capacity_mah": 2700.0,
+      "discharge_c": 30.0,
+      "internal_resistance": 0.09
     }
   },
   "propellers": {
