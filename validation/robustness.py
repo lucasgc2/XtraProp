@@ -196,6 +196,29 @@ def shipped_presets():
           "; ".join(failures[:3]))
 
 
+def motor_calibration():
+    """fit_motor.py must recover known motor constants from clean synthetic measurements."""
+    import fit_motor as fm
+    true = m.Motor(name="truth", KV=1000, R_motor=0.045, I_loadfree=1.4, max_current=50, max_power=600, weight_g=140)
+    preset = apc.apc_preset("12x6E", "APC 12x6E")
+    p = m.from_preset(m.Propeller, preset)
+    af = m.prop_airfoil(p)
+    # battery voltage is what a wattmeter reads at the ESC input, so the generator uses a stiff supply
+    bat = m.Battery(name="b", cells=4, nominal_voltage=14.8, max_voltage=16.4, capacity_mah=2200,
+                    discharge_c=40, internal_resistance=0.0)
+    rows = []
+    for thr in (0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0):
+        pt = m.motor_battery(p, af, true, bat, thr, 0.0, ATM, 0.95)
+        rows.append(dict(V=16.4, I=pt.I_battery, rpm=pt.rpm, Q=None, no_load=False, full=thr == 1.0))
+    kv_si = 1000 * 2 * math.pi / 60                      # no-load run, as in the recommended procedure
+    rows.append(dict(V=16.4, I=1.4 / 0.95, rpm=(16.4 - 1.4 * 0.045) * kv_si * 60 / (2 * math.pi), Q=None,
+                     no_load=True, full=True))
+    r = fm.calibrate(rows, preset, 900, 0.08, 3.0, 0.95, fit_kv=True, atm=ATM, verbose=False)
+    ok = abs(r["kv"] / 1000 - 1) < 0.01 and abs(r["R"] / 0.045 - 1) < 0.05 and abs(r["I0"] / 1.4 - 1) < 0.05
+    check("Motor calibration recovers known Kv, R and I0 from synthetic data", ok,
+          f"Kv {r['kv']:.0f}, R {r['R'] * 1000:.1f} mOhm, I0 {r['I0']:.2f} A (truth 1000, 45.0, 1.40)")
+
+
 # ------------------------------------------------------------------ edge cases + fuzzing
 
 def edge_cases():
@@ -256,7 +279,7 @@ def fuzz(n=600, seed=1):
 if __name__ == "__main__":
     for title, fn in (("Numerics", (grid_independence, iteration_tolerance)),
                       ("Physics", (momentum_limit, monotonic_thrust, low_re_drag)),
-                      ("Geometry and presets", (geometry_import, old_presets_unchanged, shipped_presets)),
+                      ("Geometry and presets", (geometry_import, old_presets_unchanged, shipped_presets, motor_calibration)),
                       ("Edge cases and fuzzing", (edge_cases, fuzz))):
         print(title)
         for f in fn:

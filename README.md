@@ -182,7 +182,7 @@ Para repetir la validación y las pruebas de robustez (convergencia, límites f�
 ```bash
 cd validation
 python validate.py      # escribe results/summary.csv y las gráficas de comparación
-python robustness.py    # 15 comprobaciones automáticas
+python robustness.py    # 16 comprobaciones automáticas
 ```
 
 **Hélices Aero-naut CAM.** No hay geometría publicada de estas palas, así que su forma se ha **ajustado** a las medidas en túnel de viento de UIUC (volumen 3, Dantsker et al. 2020): cuatro parámetros por pala (cuerda máxima, estrechamiento, paso efectivo y torsión), con el estrechamiento y la torsión compartidos por toda la familia, ajustados con el mismo código que la aplicación (`validation/fit_aeronaut.py`). Son formas *efectivas*: reproducen el rendimiento medido, pero no son una medida de la pala real. La 14×6.5, que UIUC no midió, se interpola entre la 14×6 y la 14×8; el mismo método predice la 12×6.5 (no usada en el ajuste) con un error del ~3% en empuje y ~1,5% en potencia.
@@ -195,6 +195,25 @@ python robustness.py    # 15 comprobaciones automáticas
 | Potencia en función de la velocidad (RMS) | 19,3% | 4,4% |
 
 En las series a las rpm más altas, que no se usaron en el ajuste, el error es del ~4% en empuje y en potencia. En una prueba independiente en banco (base de datos de Tyto Robotics: Hacker A30-14L V4 + CAM Carbon Z 10×6, 4S), el par previsto coincide con el medido (±0,3%); el empuje medido en ese banco es un ~25% menor que el de UIUC a la misma potencia, probablemente por el montaje del banco, y la corriente prevista queda un 14–20% por encima de la medida (del lado seguro). El motor Hacker A30-14L V4 se ha añadido a los preajustes. Para repetirlo: `python fit_aeronaut.py --family`, `python check_aeronaut.py`, `python compare_aeronaut.py` y `python tyto_check.py`.
+
+### Calibrar un motor
+
+Las constantes del motor (KV, resistencia del bobinado, corriente en vacío) que publican los fabricantes suelen ser aproximadas, y para algunos motores, como el EMAX GT2820/06, no se publican. `validation/fit_motor.py` las ajusta a partir de unas pocas medidas tuyas, usando el mismo modelo de motor que la aplicación.
+
+**Material:** vatímetro (tensión y corriente de la batería), tacómetro óptico (ajustado a 2 palas), un banco o soporte firme y una hélice cuya geometría esté en la aplicación (una hélice APC importada con su archivo `.PE0` es lo ideal).
+
+1. **Sin hélice:** batería cargada, acelerador al 100% unos 5 s; anota tensión, corriente y rpm del motor (marca reflectante en la campana o telemetría del variador). Fila con `no_load=1` y `full=1`.
+2. **Con hélice:** 5–6 escalones de acelerador entre el 30% y el 100%, 3–5 s cada uno; anota tensión, corriente y rpm. Marca la fila del 100% con `full=1`. No superes la corriente máxima del motor durante más de unos segundos.
+3. Copia `validation/motor_tests/TEMPLATE_gt2820_06.csv`, rellénalo y ejecuta:
+
+```bash
+cd validation
+python fit_motor.py motor_tests/mi_motor.csv --prop "<preajuste de hélice>" --start "XtraChallenge 2027 - EMAX GT2820/06" --fit-kv --save "GT2820/06 (medido)"
+```
+
+El programa ajusta con la mitad de las filas, comprueba el error de corriente con la otra mitad y guarda el motor como un preajuste nuevo. Probado con datos sintéticos (recupera KV, R e I₀ exactos) y con la prueba de Tyto del Hacker A30-14L, donde baja el error de corriente del ~20% al 1,5–5%. Los valores ajustados describen el conjunto motor + variador, así que con un variador distinto conviene repetir la medida.
+
+**EMAX GT2820/06:** no hay pruebas publicadas de este bobinado. La tabla de EMAX corresponde a las versiones /07 y /04 y no es coherente (implica rendimientos del 47% al 113%; su columna de corriente es el máximo admisible, no una medida). La única medida independiente encontrada (836 W con una 12×6 en 4S) coincide con el preajuste actual dentro de la incertidumbre sobre la tensión de la batería, así que el preajuste se mantiene hasta que tengáis vuestras medidas.
 
 ### Uso del modelo desde un script
 
@@ -426,7 +445,7 @@ To rerun the validation and the robustness tests (convergence, physical limits, 
 ```bash
 cd validation
 python validate.py      # writes results/summary.csv and the comparison plots
-python robustness.py    # 15 automated checks
+python robustness.py    # 16 automated checks
 ```
 
 **Aero-naut CAM props.** No geometry has been published for these blades, so their shape has been **fitted** to UIUC's wind-tunnel measurements (Volume 3, Dantsker et al. 2020): four parameters per blade (maximum chord, taper, effective pitch and washout), with taper and washout shared across the family, fitted through the same code as the app (`validation/fit_aeronaut.py`). They are *effective* shapes: they reproduce the measured performance but are not a measurement of the real blade. The 14×6.5, which UIUC didn't test, is interpolated between the 14×6 and 14×8; the same method predicts the 12×6.5 (not used in fitting) to within ~3% on thrust and ~1.5% on power.
@@ -439,6 +458,25 @@ python robustness.py    # 15 automated checks
 | Power vs. airspeed (RMS) | 19.3% | 4.4% |
 
 On the highest-rpm runs, which were held out of the fit, the error is ~4% on thrust and power. In an independent thrust-stand test (Tyto Robotics database: Hacker A30-14L V4 + CAM Carbon Z 10×6, 4S), predicted torque matches the measurement (±0.3%); that stand measured ~25% less thrust than UIUC at the same power, most likely because of the stand setup, and predicted current comes out 14–20% above the measurement (the safe side). The Hacker A30-14L V4 motor has been added to the presets. To rerun: `python fit_aeronaut.py --family`, `python check_aeronaut.py`, `python compare_aeronaut.py` and `python tyto_check.py`.
+
+### Calibrating a motor
+
+Manufacturer motor constants (Kv, winding resistance, no-load current) are often approximate, and for some motors, such as the EMAX GT2820/06, they aren't published. `validation/fit_motor.py` fits them to a few measurements of your own, using the same motor model as the app.
+
+**Equipment:** a wattmeter (battery voltage and current), an optical tachometer (set to 2 blades), a stand or firm mount, and a prop whose geometry is in the app (an APC prop imported from its `.PE0` file is ideal).
+
+1. **No prop:** charged battery, full throttle for about 5 s; note voltage, current and motor rpm (reflective mark on the bell, or ESC telemetry). Row with `no_load=1` and `full=1`.
+2. **With the prop:** 5–6 throttle steps from 30% to 100%, 3–5 s each; note voltage, current and rpm. Mark the 100% row `full=1`. Don't exceed the motor's maximum current for more than a few seconds.
+3. Copy `validation/motor_tests/TEMPLATE_gt2820_06.csv`, fill it in and run:
+
+```bash
+cd validation
+python fit_motor.py motor_tests/my_motor.csv --prop "<prop preset>" --start "XtraChallenge 2027 - EMAX GT2820/06" --fit-kv --save "GT2820/06 (measured)"
+```
+
+The script fits half of the rows, checks the current error on the other half, and saves the motor as a new preset. It has been tested on synthetic data (recovers Kv, R and I₀ exactly) and on the Tyto test of the Hacker A30-14L, where it cuts the current error from ~20% to 1.5–5%. The fitted values describe the motor + ESC combination, so measure again if you change ESC.
+
+**EMAX GT2820/06:** no tests of this winding have been published. EMAX's table covers the /07 and /04 versions and isn't self-consistent (it implies efficiencies of 47% to 113%; its current column is the maximum rating, not a measurement). The one independent measurement found (836 W with a 12×6 on 4S) matches the current preset within the uncertainty in battery voltage, so the preset is kept until you have your own measurements.
 
 ### Using the model from a script
 

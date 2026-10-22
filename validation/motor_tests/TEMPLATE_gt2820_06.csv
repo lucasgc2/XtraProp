@@ -1,0 +1,13 @@
+# EMAX GT2820/06 calibration measurements - fill in and run:
+#   python fit_motor.py motor_tests/TEMPLATE_gt2820_06.csv --prop "<your prop preset>" --start "XtraChallenge 2027 - EMAX GT2820/06" --fit-kv --save "GT2820/06 (measured)"
+# voltage_V: battery voltage at the ESC input during the reading (wattmeter)
+# current_A: battery current (wattmeter); rpm: optical tachometer
+# no_load = 1 for the run without a propeller; full = 1 for full-throttle rows
+# Delete the example rows below (they are placeholders, not measurements).
+voltage_V,current_A,rpm,no_load,full
+16.40,1.9,15800,1,1
+16.20,4.0,5200,0,0
+16.00,9.0,7300,0,0
+15.80,17.0,9000,0,0
+15.50,28.0,10400,0,0
+15.10,44.0,11500,0,1
