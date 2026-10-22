@@ -185,7 +185,16 @@ python validate.py      # escribe results/summary.csv y las gráficas de compara
 python robustness.py    # 15 comprobaciones automáticas
 ```
 
-Las hélices Aero-naut CAM incluidas siguen usando una cuerda lineal estimada: aún no hay geometría publicada para ellas. UIUC ha medido estas hélices (volumen 3) y, cuando publique sus archivos de geometría, se pueden importar con **Importar geometría…**.
+**Hélices Aero-naut CAM.** No hay geometría publicada de estas palas, así que su forma se ha **ajustado** a las medidas en túnel de viento de UIUC (volumen 3, Dantsker et al. 2020): cuatro parámetros por pala (cuerda máxima, estrechamiento, paso efectivo y torsión), con el estrechamiento y la torsión compartidos por toda la familia, ajustados con el mismo código que la aplicación (`validation/fit_aeronaut.py`). Son formas *efectivas*: reproducen el rendimiento medido, pero no son una medida de la pala real. La 14×6.5, que UIUC no midió, se interpola entre la 14×6 y la 14×8; el mismo método predice la 12×6.5 (no usada en el ajuste) con un error del ~3% en empuje y ~1,5% en potencia.
+
+| Error medio (6 hélices Aero-naut, todos los datos de UIUC) | Antes | Ahora |
+|---|---|---|
+| Empuje estático | 6,9% | 2,7% |
+| Potencia estática | 14,2% | 1,6% |
+| Empuje en función de la velocidad (RMS) | 15,8% | 3,3% |
+| Potencia en función de la velocidad (RMS) | 19,3% | 4,4% |
+
+En las series a las rpm más altas, que no se usaron en el ajuste, el error es del ~4% en empuje y en potencia. En una prueba independiente en banco (base de datos de Tyto Robotics: Hacker A30-14L V4 + CAM Carbon Z 10×6, 4S), el par previsto coincide con el medido (±0,3%); el empuje medido en ese banco es un ~25% menor que el de UIUC a la misma potencia, probablemente por el montaje del banco, y la corriente prevista queda un 14–20% por encima de la medida (del lado seguro). El motor Hacker A30-14L V4 se ha añadido a los preajustes. Para repetirlo: `python fit_aeronaut.py --family`, `python check_aeronaut.py`, `python compare_aeronaut.py` y `python tyto_check.py`.
 
 ### Uso del modelo desde un script
 
@@ -420,7 +429,16 @@ python validate.py      # writes results/summary.csv and the comparison plots
 python robustness.py    # 15 automated checks
 ```
 
-The included Aero-naut CAM props still use an estimated linear chord: no geometry has been published for them yet. UIUC has tested these props (Volume 3); once it publishes their geometry files, they can be loaded with **Import geometry…**.
+**Aero-naut CAM props.** No geometry has been published for these blades, so their shape has been **fitted** to UIUC's wind-tunnel measurements (Volume 3, Dantsker et al. 2020): four parameters per blade (maximum chord, taper, effective pitch and washout), with taper and washout shared across the family, fitted through the same code as the app (`validation/fit_aeronaut.py`). They are *effective* shapes: they reproduce the measured performance but are not a measurement of the real blade. The 14×6.5, which UIUC didn't test, is interpolated between the 14×6 and 14×8; the same method predicts the 12×6.5 (not used in fitting) to within ~3% on thrust and ~1.5% on power.
+
+| Average error (6 Aero-naut props, all UIUC data) | Before | Now |
+|---|---|---|
+| Static thrust | 6.9% | 2.7% |
+| Static power | 14.2% | 1.6% |
+| Thrust vs. airspeed (RMS) | 15.8% | 3.3% |
+| Power vs. airspeed (RMS) | 19.3% | 4.4% |
+
+On the highest-rpm runs, which were held out of the fit, the error is ~4% on thrust and power. In an independent thrust-stand test (Tyto Robotics database: Hacker A30-14L V4 + CAM Carbon Z 10×6, 4S), predicted torque matches the measurement (±0.3%); that stand measured ~25% less thrust than UIUC at the same power, most likely because of the stand setup, and predicted current comes out 14–20% above the measurement (the safe side). The Hacker A30-14L V4 motor has been added to the presets. To rerun: `python fit_aeronaut.py --family`, `python check_aeronaut.py`, `python compare_aeronaut.py` and `python tyto_check.py`.
 
 ### Using the model from a script
 
