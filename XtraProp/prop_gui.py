@@ -50,10 +50,14 @@ class PresetDialog(tk.Toplevel):
         self.cls = cls
         self.result = None
         self.vars = {}
+        self.has_geometry = any(f.name == "geometry" for f in dataclasses.fields(cls))
+        self.geometry = list((initial or {}).get("geometry", []))
+        self.geometry_source = (initial or {}).get("geometry_source", "")
 
         frm = ttk.Frame(self, padding=14)
         frm.grid(sticky="nsew")
-        for row, f in enumerate(dataclasses.fields(cls)):
+        visible = [f for f in dataclasses.fields(cls) if not f.metadata.get("hidden")]
+        for row, f in enumerate(visible):
             if initial is not None and f.name in initial:
                 value = initial[f.name]
             elif f.default is not dataclasses.MISSING:
@@ -83,8 +87,22 @@ class PresetDialog(tk.Toplevel):
                 entry.focus_set()
             self.vars[f.name] = (var, f)
 
+        row = len(self.vars)
+        if self.has_geometry:
+            # blade-shape table (chord and blade angle along the radius)
+            geo = ttk.LabelFrame(frm, text=t("geom.title"), padding=6)
+            geo.grid(row=row, column=0, columnspan=2, sticky="we", pady=(8, 0))
+            self.geom_label = ttk.Label(geo, wraplength=330, justify="left")
+            self.geom_label.grid(row=0, column=0, columnspan=2, sticky="w")
+            ttk.Button(geo, text=t("geom.import"), command=self._import_geometry).grid(
+                row=1, column=0, sticky="w", pady=(6, 0))
+            self.geom_clear = ttk.Button(geo, text=t("geom.clear"), command=self._clear_geometry)
+            self.geom_clear.grid(row=1, column=1, sticky="w", padx=(6, 0), pady=(6, 0))
+            self._update_geometry_label()
+            row += 1
+
         btns = ttk.Frame(frm)
-        btns.grid(row=len(self.vars), column=0, columnspan=2, sticky="e", pady=(12, 0))
+        btns.grid(row=row, column=0, columnspan=2, sticky="e", pady=(12, 0))
         ttk.Button(btns, text=t("btn.cancel"), command=self.destroy).pack(side="right")
         ttk.Button(btns, text=t("btn.save"), command=self._save).pack(side="right", padx=(0, 6))
         self.bind("<Return>", lambda e: self._save())
@@ -94,8 +112,63 @@ class PresetDialog(tk.Toplevel):
         self.grab_set()
         self.wait_window()
 
+    # ---- blade-shape table ----
+
+    def _update_geometry_label(self):
+        if self.geometry:
+            text = t("geom.loaded", n=len(self.geometry), source=self.geometry_source or "?")
+            self.geom_clear.state(["!disabled"])
+        else:
+            text = t("geom.none")
+            self.geom_clear.state(["disabled"])
+        self.geom_label.configure(text=text)
+
+    def _set_field(self, name, value):
+        if name in self.vars:
+            self.vars[name][0].set(str(value))
+
+    def _import_geometry(self):
+        path = filedialog.askopenfilename(
+            parent=self, title=t("geom.pick"),
+            filetypes=[(t("geom.filetype"), "*.PE0 *.pe0 *.txt *.csv *.dat"), ("*", "*.*")])
+        if not path:
+            return
+        try:
+            info = m.read_geometry_file(path)
+        except Exception as exc:
+            messagebox.showerror(t("dlg.invalid_value"), str(exc), parent=self)
+            return
+        self.geometry = info["geometry"]
+        self.geometry_source = os.path.basename(path)
+        if "diameter_inch" in info:
+            self._set_field("diameter_inch", round(info["diameter_inch"], 3))
+        if "r_hub" in info:
+            self._set_field("r_hub", round(info["r_hub"], 5))
+        elif "r_hub_frac" in info:
+            try:
+                d = float(self.vars["diameter_inch"][0].get())
+                self._set_field("r_hub", round(info["r_hub_frac"] * d * m.INCH / 2, 5))
+            except ValueError:
+                pass
+        for key in ("blend_start", "blend_end"):
+            if key in info:
+                self._set_field(key, round(info[key], 3))
+        library = m.list_airfoils()
+        for key in ("root_airfoil", "tip_airfoil"):
+            match = m.match_airfoil(info.get(key, ""), library)
+            if match:
+                self._set_field(key, match)
+        self._update_geometry_label()
+
+    def _clear_geometry(self):
+        self.geometry, self.geometry_source = [], ""
+        self._update_geometry_label()
+
     def _save(self):
         data = {}
+        if self.has_geometry:
+            data["geometry"] = self.geometry
+            data["geometry_source"] = self.geometry_source
         for name, (var, f) in self.vars.items():
             text = var.get().strip()
             kind = f.metadata.get("airfoil")
@@ -194,6 +267,8 @@ class App(tk.Tk):
             "points": tk.StringVar(value="20"),
             # competition / fuse limit on battery current, remembered between sessions ("" = none)
             "current_limit": tk.StringVar(value=str(self.settings.get("current_limit", ""))),
+            "esc_efficiency": tk.StringVar(value=str(self.settings.get(
+                "esc_efficiency", f"{m.DEFAULT_ESC_EFFICIENCY * 100:g}"))),
         }
         self.overlay = tk.BooleanVar(value=False)
 
@@ -313,6 +388,7 @@ class App(tk.Tk):
         self._field(common, 1, t("sweep.limit"), "current_limit")
         ttk.Label(common, text=t("sweep.limit_hint"), foreground="grey", font=("TkDefaultFont", 8),
                   wraplength=320).grid(row=2, column=0, columnspan=2, sticky="w")
+        self._field(common, 3, t("sweep.esc"), "esc_efficiency")
         ttk.Checkbutton(sweep, text=t("sweep.overlay"), variable=self.overlay).grid(
             row=3, column=0, columnspan=2, sticky="w", pady=(6, 0))
 
@@ -386,10 +462,13 @@ class App(tk.Tk):
             text = t("prop.airfoil_two", root=root or "?", tip=tip)
         else:
             text = t("prop.airfoil_one", root=root or "?")
+        text += "\n" + (t("prop.geom_table", n=len(prop["geometry"]), source=prop.get("geometry_source") or "?")
+                        if prop.get("geometry")
+                        else t("prop.geom_linear"))
         available = set(m.list_airfoils())
         missing = [n for n in (root, tip) if n and n not in available]
         if missing:
-            text += "   " + t("prop.missing", names=", ".join(missing))
+            text += "\n" + t("prop.missing", names=", ".join(missing))
         self.prop_info.configure(text=text, foreground="#b03030" if missing or not root else "grey")
 
     def _cls(self, key):
@@ -567,8 +646,12 @@ class App(tk.Tk):
             n = int(self._num("points", t("sweep.points"), 2, 500))
             limit_text = self.v["current_limit"].get().strip()
             limit = self._num("current_limit", t("sweep.limit"), 0.1, 10000) if limit_text else None
-            if self.settings.get("current_limit", "") != limit_text:
+            esc_text = self.v["esc_efficiency"].get().strip()
+            esc = self._num("esc_efficiency", t("sweep.esc"), 50, 100) / 100
+            if (self.settings.get("current_limit", "") != limit_text
+                    or self.settings.get("esc_efficiency") != esc_text):
                 self.settings["current_limit"] = limit_text
+                self.settings["esc_efficiency"] = esc_text
                 m.save_presets(self.presets)
             mode = self.mode.get()
             if mode == "airspeed":
@@ -597,10 +680,10 @@ class App(tk.Tk):
         def work():
             try:
                 fn = m.airspeed_sweep if mode == "airspeed" else m.throttle_sweep
-                pts = fn(prop, airfoil, motor, bat, atm=atm,
+                pts = fn(prop, airfoil, motor, bat, atm=atm, esc_efficiency=esc,
                          progress=lambda i: self.queue.put(("progress", i)), **params)
                 self.queue.put(("done", dict(mode=mode, label=label, points=pts, motor=motor, atm=atm,
-                                             limit=limit)))
+                                             limit=limit, esc=esc)))
             except Exception as exc:
                 self.queue.put(("error", exc))
 
@@ -661,6 +744,8 @@ class App(tk.Tk):
             first_over = next((i for i, p in enumerate(pts) if p.I_battery > limit), None)
             if first_over is None:
                 lines.append(t("sum.within_limit", lim=limit, peak=peak))
+                if peak > (1 - m.CURRENT_MARGIN) * limit:
+                    lines.append(t("sum.near_limit", pct=m.CURRENT_MARGIN * 100))
             else:
                 lines.append(t("sum.over_limit", lim=limit, x=xval(pts[first_over]), unit=unit))
                 if not is_airspeed and first_over > 0:
@@ -728,7 +813,8 @@ class App(tk.Tk):
         for run in self.runs:
             for r in m.to_rows(run["points"]):
                 rows.append({"run": run["label"], "air_density": run["atm"].rho,
-                             "current_limit": run.get("limit") or "", **r})
+                             "current_limit": run.get("limit") or "",
+                             "esc_efficiency": run.get("esc", ""), **r})
         with open(path, "w", newline="", encoding="utf-8") as f:
             writer = csv.DictWriter(f, fieldnames=list(rows[0]))
             writer.writeheader()
