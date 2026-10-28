@@ -28,6 +28,12 @@ BEMT_TOL = 1e-5         # convergence tolerance on induced velocities [m/s]
 BEMT_ITERATIONS = 200
 BEMT_RELAX = 0.5        # under-relaxation for the induced-velocity update
 
+# Below the lowest Reynolds number in an airfoil's polars, drag is scaled as Re^exponent
+# (QPROP's low-Re law). Set to 0 to hold drag constant instead (the old behaviour).
+LOW_RE_DRAG_EXPONENT = -0.5
+DEFAULT_ESC_EFFICIENCY = 0.95   # battery power = motor electrical power / ESC efficiency
+CURRENT_MARGIN = 0.15           # warn when predicted battery current is within 15% of the limit
+
 R_AIR = 287.05          # specific gas constant of air [J/(kg.K)]
 GAMMA = 1.4
 
@@ -123,27 +129,170 @@ class Propeller:
     pitch_inch: float = 0.0   # >0: constant geometric pitch, overrides root/tip angles
     blades: int = 2
     num_elm: int = 20
+    # Where the root airfoil starts blending into the tip airfoil, as a fraction of the tip
+    # radius. 0 / 1 = blend over the whole blade (from the hub to the tip).
+    blend_start: float = 0.0
+    blend_end: float = 1.0
+    # Optional blade-shape table: rows of [r/R, chord/R, blade angle (deg)], hub to tip.
+    # When present it replaces the root/tip chord, blade angles and geometric pitch.
+    geometry: list = field(default_factory=list, metadata={"hidden": True})
+    geometry_source: str = field(default="", metadata={"hidden": True})
 
     def __post_init__(self):
         self.r_tip = self.diameter_inch * INCH / 2
         if not 0 < self.r_hub < self.r_tip:
             raise ValueError(t("err.hub", r_tip=self.r_tip))
-        if self.root_chord <= 0 or self.tip_chord <= 0:
+        if not self.geometry and (self.root_chord <= 0 or self.tip_chord <= 0):
             raise ValueError(t("err.chord"))
         if self.blades < 1 or self.num_elm < 2:
             raise ValueError(t("err.blades"))
+        if not 0 <= self.blend_start < self.blend_end <= 1:
+            raise ValueError(t("err.blend"))
 
         edges = np.linspace(self.r_hub, self.r_tip, int(self.num_elm) + 1)
         self.r_mid = 0.5 * (edges[:-1] + edges[1:])
         self.dr = np.diff(edges)
         frac = (self.r_mid - self.r_hub) / (self.r_tip - self.r_hub)
-        self.span_frac = frac        # 0 at the hub, 1 at the tip (used for airfoil blending)
+
+        # airfoil blend weight: 0 = root airfoil, 1 = tip airfoil
+        b0 = max(self.blend_start * self.r_tip, self.r_hub)
+        b1 = max(self.blend_end * self.r_tip, b0 + 1e-9)
+        self.span_frac = np.clip((self.r_mid - b0) / (b1 - b0), 0.0, 1.0)
+
+        if self.geometry:
+            table = np.asarray(self.geometry, dtype=float)
+            validate_geometry(table)
+            rr = self.r_mid / self.r_tip
+            self.chord_mid = np.interp(rr, table[:, 0], table[:, 1]) * self.r_tip
+            self.twist_mid = np.interp(rr, table[:, 0], table[:, 2])
+            return
+
         self.chord_mid = self.root_chord + frac * (self.tip_chord - self.root_chord)
         if self.pitch_inch > 0:
             # helical blade: beta = atan(P / (2 pi r))
             self.twist_mid = np.degrees(np.arctan(self.pitch_inch * INCH / (2 * PI * self.r_mid)))
         else:
             self.twist_mid = self.root_pitch + frac * (self.tip_pitch - self.root_pitch)
+
+
+# Airfoil names used in geometry files -> library folders to try, best first.
+# APC's "APC12" section is equivalent to NACA 4412 (stated in APC's PE0 files).
+AIRFOIL_ALIASES = {
+    "E63": ["E63 Ncrit5", "Eppler E63"],
+    "APC12": ["NACA4412 Ncrit5", "naca4412"],
+    "NACA4412": ["NACA4412 Ncrit5", "naca4412"],
+    "CLARKY": ["Clark Y Ncrit5", "Clark Y"],
+}
+
+
+def apc_airfoil_rule(root, tip):
+    """APC files name E63 as the root section, but APC scales it to the much thicker root of the
+    blade. Polars of the thin E63 then over-predict lift: in validation against UIUC wind-tunnel
+    data, E63 -> NACA 4412 over-predicted static thrust by ~9% on average, while NACA 4412 along
+    the whole blade was the best overall match (validation/validate.py). So for APC files with an
+    E63 root, use the tip section along the whole blade."""
+    if _norm(root) == "E63" and tip:
+        return tip, tip
+    return root, tip
+
+
+def _norm(name):
+    return re.sub(r"[\s_\-]", "", name).upper()
+
+
+def match_airfoil(name, library):
+    """Best library folder for an airfoil name from a geometry file, or "" if none fits."""
+    if not name:
+        return ""
+    by_norm = {_norm(a): a for a in library}
+    for candidate in AIRFOIL_ALIASES.get(_norm(name), []) + [name]:
+        if candidate in library:
+            return candidate
+        if _norm(candidate) in by_norm:
+            return by_norm[_norm(candidate)]
+    for a in library:                           # e.g. "E63" -> "E63 Ncrit5"
+        if _norm(a).startswith(_norm(name)) or _norm(name) in _norm(a):
+            return a
+    return ""
+
+
+def validate_geometry(table):
+    """Raise ValueError unless table is rows of [r/R, chord/R, angle] with r/R increasing in (0, 1]."""
+    table = np.asarray(table, dtype=float)
+    if table.ndim != 2 or table.shape[1] != 3 or len(table) < 2:
+        raise ValueError(t("err.geom_shape"))
+    r = table[:, 0]
+    if np.any(np.diff(r) <= 0) or r[0] <= 0 or r[-1] > 1.002:
+        raise ValueError(t("err.geom_radius"))
+    if np.any(table[:, 1] < 0) or not np.any(table[:, 1] > 0):
+        raise ValueError(t("err.geom_chord"))
+    if np.any(np.abs(table[:, 2]) > 89):
+        raise ValueError(t("err.geom_angle"))
+
+
+def read_geometry_file(path):
+    """Read a blade-shape file. Supports:
+      - APC .PE0 files (apcprop.com technical data): STATION, CHORD and TWIST columns in inches/degrees,
+        plus RADIUS, HUBTRA (hub transition) and AIRFOIL1/AIRFOIL2 lines.
+      - UIUC propeller database *_geom.txt files and plain CSV/text tables: r/R, c/R, beta (deg).
+    Returns a dict with: geometry (rows of [r/R, c/R, beta]), and when known diameter_inch,
+    r_hub (m), blend_start, blend_end, root_airfoil, tip_airfoil (names as written in the file).
+    """
+    with open(path, encoding="utf-8", errors="ignore") as f:
+        text = f.read()
+    info = {}
+
+    if re.search(r"STATION", text) and re.search(r"TWIST", text) and re.search(r"RADIUS:", text):
+        # --- APC PE0 ---
+        radius = float(re.search(r"RADIUS:\s*([\d.]+)", text).group(1))
+        hubtra = re.search(r"HUBTRA:\s*([\d.]+)", text)
+        rows = []
+        for line in text.splitlines():
+            parts = line.split()
+            if len(parts) >= 9:
+                try:
+                    nums = [float(p) for p in parts[:9]]
+                except ValueError:
+                    continue
+                rows.append((nums[0], nums[1], nums[8]))     # station, chord, twist
+        if len(rows) < 2:
+            raise ValueError(t("err.geom_shape"))
+        rows = np.array(rows)
+        r_start = float(hubtra.group(1)) if hubtra else 0.15 * radius
+        keep = rows[:, 0] >= r_start - 1e-9
+        start_row = [r_start, np.interp(r_start, rows[:, 0], rows[:, 1]), np.interp(r_start, rows[:, 0], rows[:, 2])]
+        rows = np.vstack([start_row, rows[keep & (rows[:, 0] > r_start + 1e-9)]])
+        # the last station can sit a hair past the quoted (rounded) radius: clip it to the tip
+        table = np.column_stack([np.minimum(rows[:, 0] / radius, 1.0), rows[:, 1] / radius, rows[:, 2]])
+        info.update(diameter_inch=2 * radius, r_hub=r_start * INCH)
+        for key, name in (("AIRFOIL1", "root"), ("AIRFOIL2", "tip")):
+            mt = re.search(key + r":\s*([\d.]+)\s*,\s*([^\s(]+)", text)
+            if mt:
+                info[f"{name}_airfoil"] = mt.group(2)
+                info["blend_start" if name == "root" else "blend_end"] = min(float(mt.group(1)) / radius, 1.0)
+        if "root_airfoil" in info and "tip_airfoil" in info:
+            info["root_airfoil"], info["tip_airfoil"] = apc_airfoil_rule(info["root_airfoil"], info["tip_airfoil"])
+        if info.get("blend_end", 1.0) <= info.get("blend_start", 0.0):
+            info["blend_end"] = min(info["blend_start"] + 0.01, 1.0)
+    else:
+        # --- r/R, c/R, beta table (UIUC or plain) ---
+        rows = []
+        for line in text.splitlines():
+            parts = [p for p in re.split(r"[,;\s]+", line.strip()) if p]
+            if len(parts) < 3:
+                continue
+            try:
+                rows.append([float(x) for x in parts[:3]])
+            except ValueError:
+                continue
+        table = np.array(rows)
+        if len(table) < 2:
+            raise ValueError(t("err.geom_shape"))
+        info["r_hub_frac"] = float(table[0, 0])
+
+    validate_geometry(table)
+    info["geometry"] = [[round(float(a), 5), round(float(b), 5), round(float(c), 3)] for a, b, c in table]
+    return info
 
 
 # ------------ PRESETS -------------------------
@@ -213,11 +362,19 @@ class Airfoil:
         self.polars = [polars[r] for r in self.re_values]
 
     def coeffs(self, alpha_deg, re_num, span_frac=0.0):
-        """Cl, Cd interpolated in alpha, then in Re (held constant outside the table).
+        """Cl, Cd interpolated in alpha, then in Re.
+        Above the highest tabulated Re the values are held constant. Below the lowest, Cl is held
+        and Cd is scaled as (Re / Re_min)^LOW_RE_DRAG_EXPONENT, the low-Re drag law QPROP uses,
+        because skin friction keeps rising as Re falls (small props run mostly below 50,000).
         span_frac is ignored: a single airfoil is the same along the whole blade."""
         cls = [np.interp(alpha_deg, p[:, 0], p[:, 1]) for p in self.polars]
         cds = [np.interp(alpha_deg, p[:, 0], p[:, 2]) for p in self.polars]
-        return float(np.interp(re_num, self.re_values, cls)), float(np.interp(re_num, self.re_values, cds))
+        cl = float(np.interp(re_num, self.re_values, cls))
+        cd = float(np.interp(re_num, self.re_values, cds))
+        re_min = self.re_values[0]
+        if LOW_RE_DRAG_EXPONENT and 0 < re_num < re_min:
+            cd *= (re_num / re_min) ** LOW_RE_DRAG_EXPONENT
+        return cl, cd
 
 
 class BlendedAirfoil:
@@ -406,8 +563,12 @@ class OperatingPoint:
     windmilling: bool
 
 
-def motor_battery(prop, airfoil, motor, battery, throttle, airspeed, atm=STANDARD_ATMOSPHERE):
-    """Find the speed where motor torque equals propeller torque."""
+def motor_battery(prop, airfoil, motor, battery, throttle, airspeed, atm=STANDARD_ATMOSPHERE,
+                  esc_efficiency=DEFAULT_ESC_EFFICIENCY):
+    """Find the speed where motor torque equals propeller torque.
+    esc_efficiency (0-1] scales battery current: the ESC draws motor power / efficiency."""
+    if not 0 < esc_efficiency <= 1:
+        raise ValueError(t("err.esc"))
     kv = motor.KV * 2 * PI / 60          # [rad/s per V]
     kt = 1.0 / kv                        # [Nm per A]
     V = throttle * battery.max_voltage   # ESC output voltage (simple PWM model)
@@ -432,7 +593,9 @@ def motor_battery(prop, airfoil, motor, battery, throttle, airspeed, atm=STANDAR
     T, Q = calc_thrust(prop, airfoil, airspeed, omega, atm)
     T, Q = float(T), float(Q)
     I_motor = motor.I_loadfree + Q / kt if windmilling else (V - omega / kv) / R
-    I_battery = throttle * I_motor
+    # PWM ESC: battery current = duty cycle x motor current, plus ESC losses
+    # (when windmilling the motor feeds power back and the ESC loses a share of it)
+    I_battery = throttle * I_motor / esc_efficiency if I_motor >= 0 else throttle * I_motor * esc_efficiency
     shaft = Q * omega
     eff = T * airspeed / shaft if shaft > 1e-9 and T > 0 else 0.0
     return OperatingPoint(
@@ -448,20 +611,20 @@ def motor_battery(prop, airfoil, motor, battery, throttle, airspeed, atm=STANDAR
 # ------------ SWEEPS -------------------------
 
 def throttle_sweep(prop, airfoil, motor, battery, airspeed, t_min, t_max, n,
-                   atm=STANDARD_ATMOSPHERE, progress=None):
+                   atm=STANDARD_ATMOSPHERE, progress=None, esc_efficiency=DEFAULT_ESC_EFFICIENCY):
     pts = []
     for i, t in enumerate(np.linspace(t_min, t_max, n)):
-        pts.append(motor_battery(prop, airfoil, motor, battery, float(t), airspeed, atm))
+        pts.append(motor_battery(prop, airfoil, motor, battery, float(t), airspeed, atm, esc_efficiency))
         if progress:
             progress(i + 1)
     return pts
 
 
 def airspeed_sweep(prop, airfoil, motor, battery, throttle, v_max, n,
-                   atm=STANDARD_ATMOSPHERE, progress=None):
+                   atm=STANDARD_ATMOSPHERE, progress=None, esc_efficiency=DEFAULT_ESC_EFFICIENCY):
     pts = []
     for i, v in enumerate(np.linspace(0.0, v_max, n)):
-        pts.append(motor_battery(prop, airfoil, motor, battery, throttle, float(v), atm))
+        pts.append(motor_battery(prop, airfoil, motor, battery, throttle, float(v), atm, esc_efficiency))
         if progress:
             progress(i + 1)
     return pts
