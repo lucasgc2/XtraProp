@@ -11,9 +11,9 @@
     },
     "XtraChallenge 2027 - EMAX GT2820/06 (team rig, measured)": {
       "name": "XtraChallenge 2027 - EMAX GT2820/06 (team rig, measured)",
-      "KV": 982.0,
-      "R_motor": 0.076,
-      "I_loadfree": 1.8,
+      "KV": 985.0,
+      "R_motor": 0.08,
+      "I_loadfree": 1.4,
       "max_current": 45.0,
       "max_power": 650.0,
       "weight_g": 140.0
