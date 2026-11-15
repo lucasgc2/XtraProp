@@ -256,7 +256,8 @@ def max_mass(curve, LD, roc=ROC_REQ, band=CLIMB_BAND):
     return W[i] / G, V[m][i]
 
 
-def make_figures(fits, out_dir, V_oc=12.2, IR=0.035):
+def make_figures(fits, out_dir, V_oc=12.2, IR=0.035, lang="en"):
+    """Figures 10-12. lang="es" writes Spanish versions (*_es.png, decimal commas)."""
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
@@ -266,6 +267,12 @@ def make_figures(fits, out_dir, V_oc=12.2, IR=0.035):
     plt.rcParams.update({"font.size": 13, "axes.titlesize": 14, "axes.labelsize": 13,
                          "xtick.labelsize": 11, "ytick.labelsize": 11, "legend.fontsize": 12})
     os.makedirs(out_dir, exist_ok=True)
+    es = lang == "es"
+    tr = lambda en, sp: sp if es else en
+    num = lambda v, nd=1: f"{v:.{nd}f}".replace(".", ",") if es else f"{v:.{nd}f}"
+    name = lambda l: l.replace(" folding", " plegable") if es else l
+    from matplotlib.ticker import FuncFormatter
+    comma = FuncFormatter(lambda x, _: f"{x:g}".replace(".", ","))
 
     def style(ax):
         ax.set_facecolor(SURFACE)
@@ -276,6 +283,9 @@ def make_figures(fits, out_dir, V_oc=12.2, IR=0.035):
         for s in ("left", "bottom"):
             ax.spines[s].set_color(INK2)
         ax.tick_params(colors=INK2)
+        if es:
+            ax.xaxis.set_major_formatter(comma)
+            ax.yaxis.set_major_formatter(comma)
 
     def figure(title, subtitle, ncols=1):
         fig, axes = plt.subplots(1, ncols, figsize=(W_, H_))
@@ -286,6 +296,7 @@ def make_figures(fits, out_dir, V_oc=12.2, IR=0.035):
 
     def save(fig, name):
         fig.tight_layout(rect=(0, 0.05, 1, 0.86))
+        name = name.replace(".png", "_es.png") if es else name
         fig.savefig(os.path.join(out_dir, name), dpi=DPI, facecolor=SURFACE)
         plt.close(fig)
         print("wrote", name)
@@ -299,14 +310,16 @@ def make_figures(fits, out_dir, V_oc=12.2, IR=0.035):
     i13 = np.argmin(abs(Vs - 13))
     order = sorted(fits, key=lambda l: -curves[l]["T"][i13])
     color = {l: PAL[i] for i, l in enumerate(order)}
-    src = (f"Car tests 12 & 14 Nov · GT2820/06 · all props on the same 3S2P battery "
-           f"({V_oc} V open-circuit, {IR * 1000:.0f} mΩ) · ρ 1.20 kg/m³")
+    src = tr(f"Car tests 12 & 14 Nov · GT2820/06 · all props on the same 3S2P battery "
+             f"({V_oc} V open-circuit, {IR * 1000:.0f} mΩ) · ρ 1.20 kg/m³",
+             f"Ensayos en coche 12 y 14 nov · GT2820/06 · todas las hélices con la misma batería 3S2P "
+             f"({num(V_oc)} V en vacío, {IR * 1000:.0f} mΩ) · ρ 1,20 kg/m³")
 
     # 1. full-throttle thrust vs airspeed
-    fig, ax = figure("Full-throttle thrust vs. airspeed", src)
+    fig, ax = figure(tr("Full-throttle thrust vs. airspeed", "Empuje a gas máximo frente a velocidad"), src)
     style(ax)
     ax.axvspan(*CLIMB_BAND, color=BAND, zorder=0)
-    ax.text(np.mean(CLIMB_BAND), 23.3, "climb speeds", ha="center", color=INK2, fontsize=12)
+    ax.text(np.mean(CLIMB_BAND), 23.3, tr("climb speeds", "velocidades de subida"), ha="center", color=INK2, fontsize=12)
     ends = []
     for lab in order:
         c = curves[lab]
@@ -317,29 +330,33 @@ def make_figures(fits, out_dir, V_oc=12.2, IR=0.035):
     for k in range(1, len(ends)):                    # de-overlap the end labels
         ends[k][0] = max(ends[k][0], ends[k - 1][0] + 0.75)
     for y, lab in ends:
-        ax.text(30.4, y, lab, color=color[lab], fontsize=12, weight="bold", va="center")
+        ax.text(30.4, y, name(lab), color=color[lab], fontsize=12, weight="bold", va="center")
     ax.set_xlim(0, 34.5)
     ax.set_ylim(0, 24)
-    ax.set_xlabel("True airspeed [m/s]", color=INK)
-    ax.set_ylabel("Thrust [N]", color=INK)
-    fig.text(0.015, 0.02, "Curves: measured C_T(J), C_P(J) of each prop + fitted motor; they reproduce the raw car data "
-             "within 0.3–0.6 N rms. Dashed: folding props.", fontsize=11, color=INK2)
+    ax.set_xlabel(tr("True airspeed [m/s]", "Velocidad verdadera [m/s]"), color=INK)
+    ax.set_ylabel(tr("Thrust [N]", "Empuje [N]"), color=INK)
+    fig.text(0.015, 0.02, tr("Curves: measured C_T(J), C_P(J) of each prop + fitted motor; they reproduce the raw car data "
+                             "within 0.3–0.6 N rms. Dashed: folding props.",
+                             "Curvas: C_T(J) y C_P(J) medidos de cada hélice + motor ajustado; reproducen los datos brutos "
+                             "del coche con 0,3–0,6 N rms. Discontinuas: hélices plegables."), fontsize=11, color=INK2)
     save(fig, "10_car_thrust_vs_airspeed.png")
 
     # 2. climb ranking: thrust at 13 m/s and heaviest aircraft that makes 120 m in 60 s
-    fig, (a1, a2) = figure("Which prop climbs best?",
-                           f"Left: thrust at 13 m/s, a typical climb speed. Right: heaviest aircraft that still climbs at "
-                           f"{ROC_REQ:.1f} m/s (120 m in ~50 s).", ncols=2)
+    fig, (a1, a2) = figure(tr("Which prop climbs best?", "¿Qué hélice sube mejor?"),
+                           tr(f"Left: thrust at 13 m/s, a typical climb speed. Right: heaviest aircraft that still climbs at "
+                              f"{ROC_REQ:.1f} m/s (120 m in ~50 s).",
+                              f"Izquierda: empuje a 13 m/s, una velocidad de subida típica. Derecha: avión más pesado que "
+                              f"aún sube a {num(ROC_REQ)} m/s (120 m en ~50 s)."), ncols=2)
     y = np.arange(len(order))[::-1]
     for ax in (a1, a2):
         style(ax)
         ax.grid(axis="y", visible=False)
-        ax.set_yticks(y, order)
+        ax.set_yticks(y, [name(l) for l in order])
     t13 = [curves[l]["T"][i13] for l in order]
     a1.barh(y, t13, color=[color[l] for l in order], height=0.62)
     for yy, v, l in zip(y, t13, order):
-        a1.text(v, yy, f" {v:.1f} N · {curves[l]['I'][i13]:.0f} A", va="center", color=INK, fontsize=11)
-    a1.set_xlabel("Thrust at 13 m/s, full throttle [N]", color=INK)
+        a1.text(v, yy, f" {num(v)} N · {curves[l]['I'][i13]:.0f} A", va="center", color=INK, fontsize=11)
+    a1.set_xlabel(tr("Thrust at 13 m/s, full throttle [N]", "Empuje a 13 m/s, gas máximo [N]"), color=INK)
     a1.set_xlim(0, 21)
     for LD, mk, txt in ((6, "o", "L/D 6"), (8, "D", "L/D 8"), (10, "s", "L/D 10")):
         mm = [max_mass((Vs, curves[l]["T"]), LD)[0] for l in order]
@@ -349,15 +366,19 @@ def make_figures(fits, out_dir, V_oc=12.2, IR=0.035):
         lo = max_mass((Vs, curves[l]["T"]), 6)[0]
         hi = max_mass((Vs, curves[l]["T"]), 10)[0]
         a2.plot([lo, hi], [yy, yy], color=color[l], linewidth=2, zorder=2)
-    a2.set_xlabel("Maximum take-off mass for 120 m in 60 s [kg]", color=INK)
+    a2.set_xlabel(tr("Maximum take-off mass for 120 m in 60 s [kg]", "Masa máxima al despegue para 120 m en 60 s [kg]"), color=INK)
     a2.set_ylim(-0.6, len(order) - 0.1)
-    fig.text(0.015, 0.02, "Right: drag taken as weight ÷ (L/D) at the best climb speed between 10 and 18 m/s. "
-             "Absolute values scale with the load-cell calibration; the ranking does not.", fontsize=11, color=INK2)
+    fig.text(0.015, 0.02, tr("Right: drag taken as weight ÷ (L/D) at the best climb speed between 10 and 18 m/s. "
+                             "Absolute values scale with the load-cell calibration; the ranking does not.",
+                             "Derecha: resistencia = peso ÷ (L/D) a la mejor velocidad de subida entre 10 y 18 m/s. Los valores "
+                             "absolutos dependen de la calibración de la célula de carga; la clasificación, no."),
+             fontsize=11, color=INK2)
     save(fig, "11_car_climb_ranking.png")
 
     # 3. current and fixed vs folding
-    fig, (a1, a2) = figure("Battery current and folding vs. fixed blades",
-                           "Left: full-throttle battery current. Right: same size, fixed vs folding.", ncols=2)
+    fig, (a1, a2) = figure(tr("Battery current and folding vs. fixed blades", "Corriente de batería y palas plegables frente a fijas"),
+                           tr("Left: full-throttle battery current. Right: same size, fixed vs folding.",
+                              "Izquierda: corriente de batería a gas máximo. Derecha: mismo tamaño, fija frente a plegable."), ncols=2)
     for ax in (a1, a2):
         style(ax)
     for lab in order:
@@ -367,19 +388,19 @@ def make_figures(fits, out_dir, V_oc=12.2, IR=0.035):
     for k in range(1, len(ends)):
         ends[k][0] = max(ends[k][0], ends[k - 1][0] + 1.1)
     for yv, l in ends:
-        a1.text(-0.5, yv, l, color=color[l], fontsize=11, weight="bold", va="center", ha="right")
+        a1.text(-0.5, yv, name(l), color=color[l], fontsize=11, weight="bold", va="center", ha="right")
     a1.set_xlim(-9, 30)
     a1.set_xticks([0, 10, 20, 30])
-    a1.set_xlabel("True airspeed [m/s]", color=INK)
-    a1.set_ylabel("Battery current [A]", color=INK)
+    a1.set_xlabel(tr("True airspeed [m/s]", "Velocidad verdadera [m/s]"), color=INK)
+    a1.set_ylabel(tr("Battery current [A]", "Corriente de batería [A]"), color=INK)
     for pair in (("12x7.5", "12x7.5 folding"), ("11x7", "11x7 folding")):
         for lab in pair:
             a2.plot(Vs, curves[lab]["T"], color=color[lab], linewidth=2.4,
-                    linestyle=(0, (5, 3)) if fits[lab][4] else "-", label=lab)
+                    linestyle=(0, (5, 3)) if fits[lab][4] else "-", label=name(lab))
     a2.axvspan(*CLIMB_BAND, color=BAND, zorder=0)
     a2.legend(frameon=False)
-    a2.set_xlabel("True airspeed [m/s]", color=INK)
-    a2.set_ylabel("Thrust [N]", color=INK)
+    a2.set_xlabel(tr("True airspeed [m/s]", "Velocidad verdadera [m/s]"), color=INK)
+    a2.set_ylabel(tr("Thrust [N]", "Empuje [N]"), color=INK)
     a2.set_ylim(0, 23)
     save(fig, "12_car_current_folding.png")
     return curves, Vs
@@ -403,6 +424,7 @@ def run(root, out_dir=OUT):
         cp, _ = fit_poly(c["J"], c["CP"])
         fits[lab] = (cc, cp, D, P, fold, c["J"].max())
     curves, Vs = make_figures(fits, out_dir)
+    make_figures(fits, out_dir, lang="es")
     os.makedirs(out_dir, exist_ok=True)
     with open(os.path.join(out_dir, "car_tests_summary.csv"), "w", newline="") as fh:
         w = csv.writer(fh)
